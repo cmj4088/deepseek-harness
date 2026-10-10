@@ -74,6 +74,9 @@ export class LocalFileSystem extends FileSystem {
     const root = directory ? path : dirname(path)
     const watcher = watch(root, {
       ignoreInitial: true, depth: 0,
+      // Reparse points inside the directory must never be followed: a junction
+      // cycle would keep Chokidar's scan running forever.
+      followSymlinks: false,
       ignored: entry => !directory && resolve(entry) !== root && resolve(entry) !== path,
     })
     watcher.on('all', (_event, entry) => {

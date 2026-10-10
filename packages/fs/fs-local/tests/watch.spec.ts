@@ -41,7 +41,10 @@ describe('local filesystem watch', () => {
     await h.started
     const ignored = h.watch.mock.calls[0]![1]!.ignored
     if (typeof ignored !== 'function') throw new Error('Expected a target filter')
-    expect(h.watch).toHaveBeenCalledExactlyOnceWith(dirname(h.path), { ignoreInitial: true, depth: 0, ignored })
+    // Reparse points inside the watched directory must never be followed:
+    // a junction cycle would keep Chokidar's scan running forever.
+    expect(h.watch.mock.calls[0]![1]!.followSymlinks).toBe(false)
+    expect(h.watch).toHaveBeenCalledExactlyOnceWith(dirname(h.path), { ignoreInitial: true, depth: 0, followSymlinks: false, ignored })
     expect(ignored(dirname(h.path))).toBe(false)
     expect(ignored(h.path)).toBe(false)
     expect(ignored(join(dirname(h.path), 'unrelated.txt'))).toBe(true)

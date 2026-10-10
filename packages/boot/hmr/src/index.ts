@@ -244,7 +244,9 @@ class Hmr extends Service {
       this.ctx.logger.info('watching %o in %s', root, this.baseDir)
     }
 
-    const match = picomatch(ignored)
+    // Windows `relative()` emits backslash separators the patterns can't match;
+    // windows:true keeps `**/node_modules` effective on win32.
+    const match = picomatch(ignored, { windows: true })
     const watchBaseDir = realpathSync(this.baseDir)
 
     // Collect externals before opening the watcher so every post-ready change
@@ -257,10 +259,20 @@ class Hmr extends Service {
       this.externals = new Set()
     }
 
-    this.watcher = watch(root, {
+    // Resolve each root through its real path so a watch root that is itself a
+    // symlink (a plugin alias) stays watchable with symlink following disabled.
+    const watchRoots = root.map((entry) => {
+      const abs = resolve(watchBaseDir, entry)
+      try { return realpathSync(abs) } catch { return abs }
+    })
+
+    this.watcher = watch(watchRoots, {
       ...this.config,
       cwd: watchBaseDir,
       ignored: path => match(relative(watchBaseDir, path)),
+      // Node-module junctions (pnpm layouts) can form cycles; following them
+      // makes the initial scan run forever. Externals never hot-reload anyway.
+      followSymlinks: false,
       ignoreInitial: true,
     })
 
